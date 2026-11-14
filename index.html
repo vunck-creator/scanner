@@ -45,7 +45,26 @@ h1 small{display:block;font-family:var(--f-body);font-size:14px;color:var(--mute
 .quick input{width:22px;height:22px;accent-color:var(--accent);margin-top:2px;flex:none}
 .ver{font-family:var(--f-display);color:var(--accent);font-weight:500}
 .quick b{display:block;font-size:15px}.quick span{font-size:14px;color:var(--muted)}
-.editor{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.editor{position:fixed;inset:0;z-index:50;background:var(--surface);overflow-y:auto;overscroll-behavior:contain;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.editor .edin{max-width:640px;margin:0 auto}
+.editor .row{position:sticky;bottom:0;background:var(--surface);padding-top:10px;border-top:1px solid var(--line)}
+/* full-screen viewer: swipe through finished pages */
+.viewer{position:fixed;inset:0;z-index:45;background:#111;color:#fff;display:flex;flex-direction:column}
+.vtop{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px}
+.vtop b{font-family:var(--f-display);font-size:18px;font-variant-numeric:tabular-nums}
+.vwarn{font-size:13px;background:var(--danger);color:#fff;border-radius:999px;padding:3px 10px}
+.vtrack{flex:1;min-height:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
+.vtrack::-webkit-scrollbar{display:none}
+.vpage{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;padding:6px 10px}
+.vpage img{max-width:100%;max-height:100%;object-fit:contain;background:#fff;box-shadow:0 2px 16px rgba(0,0,0,.5)}
+.vbar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+.vbar .btn{background:#222;border-color:#333;color:#fff;flex-direction:column;gap:2px;font-size:14px;min-height:56px}
+.vbar .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.vbar .btn.danger{color:#F06A73}
+.camtools{display:flex;gap:8px;align-items:center}
+.camchip{appearance:none;border:1px solid rgba(255,255,255,.4);background:rgba(0,0,0,.55);color:#fff;border-radius:999px;height:40px;padding:0 12px;font:inherit;font-size:14px;cursor:pointer}
+.camchip[aria-pressed="true"]{background:var(--mark);color:#14201C;border-color:var(--mark)}
+.focus{position:absolute;width:70px;height:70px;margin:-35px 0 0 -35px;border:2px solid var(--mark);border-radius:50%;pointer-events:none;opacity:0;transition:opacity .4s}
 .edhead{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .edhead b{font-size:15px}
 .tag{font-size:12px;letter-spacing:.06em;background:var(--mark);color:#14201C;border-radius:6px;padding:2px 8px;font-weight:700}
@@ -91,8 +110,8 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
   padding-top:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .capbar .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr;gap:10px}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:15px;max-width:calc(100% - 32px);z-index:20;text-align:center}
-.busy{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:30;color:#fff;font-size:17px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:15px;max-width:calc(100% - 32px);z-index:60;text-align:center}
+.busy{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:70;color:#fff;font-size:17px}
 .bar{width:min(260px,70vw);height:8px;background:rgba(255,255,255,.25);border-radius:4px;overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--mark)}
 /* in-app camera: shoot many pages in a row, no confirm step */
@@ -120,15 +139,15 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
 
 <div class="wrap">
   <header>
-    <h1>文件扫描仪<small>拍照 · 裁边 · 变白 · PDF / JPEG · <span class="ver">v5 · 2026-11-14</span></small></h1>
+    <h1>文件扫描仪<small>拍照 · 裁边 · 变白 · PDF / JPEG · <span class="ver">v6 · 2026-11-14</span></small></h1>
   </header>
 
   <label class="quick" for="quick">
     <input type="checkbox" id="quick" checked>
-    <div><b>快速模式（相册）</b><span>相册多选也自动找边、变白、直接加入。带红点的页面是没把握的，点开修一下。</span></div>
+    <div><b>快速模式（相册）</b><span>相册多选也自动找边、变白、直接加入。带红点的是没把握的，点开看看，不对再按“编辑”。</span></div>
   </label>
 
-  <div class="editor" id="editor">
+  <div class="editor" id="editor" hidden><div class="edin">
     <div class="edhead"><b id="edTitle">调整边角</b><span class="conf" id="edConf"></span><span class="tag" id="edTag">示例</span></div>
     <p class="hint">拖动四个黄点对准单据四角，按住时会放大给你看。</p>
     <div class="stage" id="stage"><canvas id="cv"></canvas><canvas id="loupe" width="220" height="220" hidden></canvas></div>
@@ -145,10 +164,10 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
     </div>
     <div class="preview"><canvas id="out"></canvas></div>
     <div class="row">
-      <button class="btn" id="btnDiscard" type="button">放弃</button>
+      <button class="btn" id="btnDiscard" type="button">取消</button>
       <button class="btn primary" id="btnSave" type="button">✓ 加入文件</button>
     </div>
-  </div>
+  </div></div>
 
   <section>
     <div class="sechead"><h2>已扫描 <b id="count">0</b> 页 <span class="proc" id="proc"></span></h2><button class="linkbtn" id="btnClear" type="button" hidden>清空全部</button></div>
@@ -181,11 +200,22 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
 </div></div>
 <div class="cam" id="cam" hidden>
   <div class="camview"><video id="vid" playsinline muted autoplay></video><canvas id="camOv"></canvas><div class="flash" id="flash"></div>
-    <div class="camtop"><span class="camhint" id="camHint">对准文件，按快门。拍完一张直接拍下一张</span><button class="camx" id="camClose" type="button" aria-label="关闭相机">✕</button></div></div>
+    <div class="focus" id="focusRing"></div>
+    <div class="camtop"><span class="camhint" id="camHint">对准文件，按快门</span><div class="camtools"><button class="camchip" id="camLens" type="button" hidden>换镜头</button><button class="camchip" id="camHQ" type="button" aria-pressed="false">高清</button><button class="camx" id="camClose" type="button" aria-label="关闭相机">✕</button></div></div></div>
   <div class="cambar">
     <button class="camthumb" id="camThumb" type="button" aria-label="完成并查看"><img id="camLast" alt="" hidden><b id="camN">0</b></button>
     <button class="shutter" id="shutter" type="button" aria-label="拍照"></button>
     <button class="btn camdone" id="camDone" type="button">完成</button>
+  </div>
+</div>
+<div class="viewer" id="viewer" hidden>
+  <div class="vtop"><b id="vPos">1 / 1</b><span class="vwarn" id="vWarn" hidden>找边没把握，看一下</span><button class="camx" id="vClose" type="button" aria-label="返回">✕</button></div>
+  <div class="vtrack" id="vTrack"></div>
+  <div class="vbar">
+    <button class="btn primary" id="vEdit" type="button">✎<span>编辑</span></button>
+    <button class="btn" id="vRot" type="button">↻<span>旋转</span></button>
+    <button class="btn danger" id="vDel" type="button">✕<span>删除</span></button>
+    <button class="btn" id="vBack" type="button">▦<span>返回</span></button>
   </div>
 </div>
 <div id="toast" hidden></div>
@@ -289,23 +319,70 @@ async function nextInQueue(){
 
 /* ---------- in-app camera: tap shutter, keep shooting, no confirm per page ---------- */
 const vid=$('vid'), ov=$('camOv');
-let stream=null, ic=null, liveT=0, jobs=[], working=false, lastShot=0, sess={n:0,low:0,bad:0}, camOpen=false;
-async function openCam(){
-  try{ stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:3840}, height:{ideal:2160}}}); }
-  catch(e){ toast('打不开相机（可能没给权限），改用手机自带相机'); $('fileCam').click(); return; }
+let stream=null, ic=null, liveT=0, jobs=[], working=false, lastShot=0, sess={n:0,low:0,bad:0,start:0}, camOpen=false, wantViewer=-1;
+let backCams=[], hq=false;
+try{ hq = localStorage.getItem('camHQ')==='1'; }catch(e){}
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}}, lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+function stopStream(){ if(stream) stream.getTracks().forEach(t=>t.stop()); stream=null; vid.srcObject=null; }
+async function startStream(deviceId){
+  const v = {width:{ideal:4096}, height:{ideal:3072}};
+  if(deviceId) v.deviceId={exact:deviceId}; else v.facingMode={ideal:'environment'};
+  stopStream(); stream = await navigator.mediaDevices.getUserMedia({audio:false, video:v});
   vid.srcObject=stream; try{ await vid.play(); }catch(e){}
-  ic=null; try{ if('ImageCapture' in window) ic=new ImageCapture(stream.getVideoTracks()[0]); }catch(e){}
-  camOpen=true; $('cam').hidden=false; document.body.style.overflow='hidden'; closeEditor();
-  sess={n:0,low:0,bad:0}; $('camN').textContent='0'; $('camLast').hidden=true; $('shutter').disabled=false;
+  const tr=stream.getVideoTracks()[0];
+  ic=null; try{ if('ImageCapture' in window) ic=new ImageCapture(tr); }catch(e){}
+  // keep refocusing on its own
+  try{ const cap=tr.getCapabilities?tr.getCapabilities():{}; if(cap.focusMode&&cap.focusMode.includes('continuous')) await tr.applyConstraints({advanced:[{focusMode:'continuous'}]}); }catch(e){}
+  return tr;
+}
+// phones with several back lenses (main / wide / tele): browsers sometimes pick the tele one → too close, blurry.
+// Prefer the main lens ("camera2 0" / "camera 0" on Android); the "换镜头" button cycles and the choice is remembered.
+function pickMain(list){
+  const m = list.find(d=>/\b(camera2? ?0)\b/i.test(d.label)) || list.find(d=>/back|rear|后/i.test(d.label) && !/tele|长焦|wide|广角|ultra/i.test(d.label));
+  return (m||list[0]||{}).deviceId;
+}
+async function openCam(){
+  try{ await startStream(lsGet('camId')||null); }
+  catch(e){ try{ await startStream(null); }catch(e2){ toast('打不开相机（可能没给权限），改用手机自带相机'); $('fileCam').click(); return; } }
+  try{
+    const all=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+    backCams = all.filter(d=>!/front|前|user|facetime/i.test(d.label)); if(!backCams.length) backCams=all;
+    const cur = stream.getVideoTracks()[0].getSettings().deviceId;
+    if(!lsGet('camId') && backCams.length>1){ const want=pickMain(backCams); if(want && want!==cur) await startStream(want); }
+  }catch(e){ backCams=[]; }
+  $('camLens').hidden = backCams.length<2; $('camHQ').setAttribute('aria-pressed', hq);
+  camOpen=true; $('cam').hidden=false; document.body.style.overflow='hidden'; closeEditor(); closeViewer();
+  sess={n:0,low:0,bad:0,start:pages.length+jobs.length+(working?1:0)}; $('camN').textContent='0'; $('camLast').hidden=true; $('shutter').disabled=false; camHint();
   core(); live();
 }
+function camHint(t){ $('camHint').textContent = t || (hq?'高清：按快门后别动，闪了才算拍好':'对准文件，按快门'); }
+$('camLens').onclick = async ()=>{
+  if(backCams.length<2) return; const cur=stream&&stream.getVideoTracks()[0].getSettings().deviceId;
+  const i=backCams.findIndex(d=>d.deviceId===cur), nx=backCams[(i+1)%backCams.length];
+  try{ await startStream(nx.deviceId); lsSet('camId',nx.deviceId); toast(`镜头 ${(i+1)%backCams.length+1} / ${backCams.length}，已记住`); }
+  catch(e){ toast('这个镜头打不开，换下一个试试'); }
+};
+$('camHQ').onclick = ()=>{ hq=!hq; lsSet('camHQ',hq?'1':'0'); $('camHQ').setAttribute('aria-pressed',hq); camHint(); toast(hq?'高清：全尺寸照片，按下后稳住约 1 秒':'秒拍：按下那一刻就拍好'); };
+// tap the picture to focus there (if the phone supports it)
+$('cam').querySelector('.camview').addEventListener('click', async e=>{
+  if(e.target.closest('button')||!stream) return;
+  const b=vid.getBoundingClientRect(), r=$('focusRing'); r.style.left=(e.clientX-b.left)+'px'; r.style.top=(e.clientY-b.top)+'px'; r.style.opacity=1; setTimeout(()=>r.style.opacity=0,700);
+  const tr=stream.getVideoTracks()[0]; let cap={}; try{cap=tr.getCapabilities()}catch(_){}
+  const vw=vid.videoWidth, vh=vid.videoHeight, k=Math.min(b.width/vw,b.height/vh), x=((e.clientX-b.left)-(b.width-vw*k)/2)/(vw*k), y=((e.clientY-b.top)-(b.height-vh*k)/2)/(vh*k);
+  try{
+    const adv={pointsOfInterest:[{x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y))}]};
+    if(cap.focusMode&&cap.focusMode.includes('single-shot')) adv.focusMode='single-shot';
+    await tr.applyConstraints({advanced:[adv]});
+    if(cap.focusMode&&cap.focusMode.includes('continuous')) setTimeout(()=>tr.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(()=>{}),2500);
+  }catch(_){}
+});
 function closeCam(){
-  camOpen=false; clearTimeout(liveT); if(stream) stream.getTracks().forEach(t=>t.stop()); stream=null; vid.srcObject=null;
-  $('cam').hidden=true; document.body.style.overflow=''; renderGrid(); pump();
-  if(sess.n && !jobs.length && !working) camSummary();
-  $('grid').scrollIntoView({behavior:'smooth',block:'start'});
+  camOpen=false; clearTimeout(liveT); stopStream();
+  $('cam').hidden=true; document.body.style.overflow=''; renderGrid();
+  if(sess.n){ wantViewer=sess.start; }
+  pump();
 }
-function camSummary(){ if(!sess.n) return; let m=`本次拍了 ${sess.n} 页`; if(sess.low) m+=`，${sess.low} 页带红点，点开修一下`; else m+='，全部找边有把握 👍'; if(sess.bad) m+=`｜${sess.bad} 张处理失败`; toast(m); sess={n:0,low:0,bad:0}; }
+function camSummary(){ if(!sess.n) return; let m=`本次拍了 ${sess.n} 页`; if(sess.low) m+=`，${sess.low} 页带红点`; else m+='，全部找边有把握 👍'; if(sess.bad) m+=`｜${sess.bad} 张处理失败`; toast(m); sess.n=0; sess.low=0; sess.bad=0; }
 $('camDone').onclick = closeCam; $('camClose').onclick = closeCam; $('camThumb').onclick = closeCam;
 // live outline so you can see what will be cropped
 function live(){
@@ -327,18 +404,27 @@ function live(){
     live();
   }, 280);
 }
+function flash(){ const f=$('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); try{navigator.vibrate&&navigator.vibrate(25)}catch(e){} }
 $('shutter').onclick = async ()=>{
   if(!vid.videoWidth || $('shutter').disabled) return;
-  const f=$('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); try{navigator.vibrate&&navigator.vibrate(25)}catch(e){}
+  // grab the frame on screen right now → what you see is what you get, no delay
   const vw=vid.videoWidth, vh=vid.videoHeight, frame=document.createElement('canvas'); frame.width=vw; frame.height=vh; frame.getContext('2d').drawImage(vid,0,0);
+  let blob=null, fromFrame=true;
+  if(hq && ic){
+    $('shutter').disabled=true; camHint('别动…');
+    try{ blob=await ic.takePhoto(); fromFrame=false; }catch(e){ blob=null; }
+    $('shutter').disabled=false; camHint();
+  }
+  flash();
   const t=document.createElement('canvas'), ts=160/Math.max(vw,vh); t.width=vw*ts; t.height=vh*ts; t.getContext('2d').drawImage(frame,0,0,t.width,t.height);
   $('camLast').src=t.toDataURL('image/jpeg',.6); $('camLast').hidden=false; sess.n++; $('camN').textContent=sess.n; lastShot=Date.now();
-  let blob=null, fromFrame=false;
-  if(ic){ $('shutter').disabled=true; try{ blob=await ic.takePhoto(); }catch(e){ ic=null; } $('shutter').disabled=false; }
-  if(!blob){ blob=await toBlob(frame,0.92); fromFrame=true; }
+  if(!blob) blob=await toBlob(frame,0.93);
   jobs.push({blob, fromFrame, portrait: vh>vw}); updProc(); setTimeout(pump, 1600);
 };
-function updProc(){ const n=jobs.length+(working?1:0); $('proc').textContent = n?`· 处理中还剩 ${n} 张`:''; }
+function updProc(){
+  const n=jobs.length+(working?1:0); $('proc').textContent = n?`· 处理中还剩 ${n} 张`:'';
+  if(!camOpen && wantViewer>=0 && n) busy(true,`处理中，还剩 ${n} 张…`, null);
+}
 async function loadShot(j){
   let c = await loadFile(j.blob);
   // some phones hand back the full-res photo in sensor (landscape) orientation; turn it to match what you saw
@@ -356,15 +442,43 @@ async function pump(){
     catch(e){ sess.bad++; }
     autoName(); if(!camOpen) renderGrid();
   }
-  working=false; updProc(); if(!camOpen){ renderGrid(); camSummary(); }
+  working=false; updProc();
+  if(!camOpen){ busy(false); renderGrid(); camSummary(); if(wantViewer>=0){ const i=Math.min(wantViewer,pages.length-1); wantViewer=-1; if(i>=0) openViewer(i); } }
 }
+
+/* ---------- viewer: swipe through finished pages, edit only when asked ---------- */
+let vIdx=0, vUrls=[];
+function openViewer(i){
+  if(!pages.length) return;
+  const tr=$('vTrack'); vUrls.forEach(u=>URL.revokeObjectURL(u)); vUrls=[]; tr.innerHTML='';
+  pages.forEach(p=>{ const d=document.createElement('div'); d.className='vpage'; const im=document.createElement('img'); const u=URL.createObjectURL(p.out); vUrls.push(u); im.src=u; im.alt=''; im.loading='lazy'; d.appendChild(im); tr.appendChild(d); });
+  $('viewer').hidden=false; document.body.style.overflow='hidden';
+  vIdx=Math.max(0,Math.min(i,pages.length-1)); requestAnimationFrame(()=>{ tr.scrollLeft=vIdx*tr.clientWidth; vMeta(); });
+}
+function closeViewer(){ $('viewer').hidden=true; document.body.style.overflow=''; vUrls.forEach(u=>URL.revokeObjectURL(u)); vUrls=[]; $('vTrack').innerHTML=''; }
+function vMeta(){ const p=pages[vIdx]; $('vPos').textContent=`${vIdx+1} / ${pages.length}`; $('vWarn').hidden=!(p&&p.check); const d=$('vDel'); delete d.dataset.sure; d.querySelector('span').textContent='删除'; }
+$('vTrack').addEventListener('scroll', ()=>{ const tr=$('vTrack'), i=Math.round(tr.scrollLeft/Math.max(1,tr.clientWidth)); if(i!==vIdx && i<pages.length){ vIdx=i; vMeta(); } }, {passive:true});
+$('vClose').onclick = $('vBack').onclick = ()=>{ closeViewer(); renderGrid(); };
+async function vReplace(i,p){ pages[i]=p; await dbPut(p); const im=$('vTrack').children[i]&&$('vTrack').children[i].querySelector('img'); if(im){ const u=URL.createObjectURL(p.out); vUrls.push(u); im.src=u; } vMeta(); renderGrid(); }
+$('vEdit').onclick = async ()=>{ const i=vIdx, p=pages[i]; if(!p) return; busy(true,'打开中…'); await tick();
+  try{ await core(); const c=await blobToCanvas(p.src); startEdit(c,p.src,p.quad,p.filter,i,false,p.conf); } catch(e){ toast('这一页打不开'); } finally{ busy(false); } };
+$('vRot').onclick = async ()=>{ const i=vIdx, p=pages[i]; if(!p) return; busy(true,'旋转中…'); await tick();
+  try{ await core(); const c=await blobToCanvas(p.src), r=rot90(c, p.quad); const np=await finish(r.c,null,r.q,p.filter,p.check,p.id,p.conf); await vReplace(i,np); } catch(e){ toast('旋转失败'); } finally{ busy(false); } };
+$('vDel').onclick = async ()=>{ const d=$('vDel'), i=vIdx, p=pages[i]; if(!p) return;
+  if(!d.dataset.sure){ d.dataset.sure=1; d.querySelector('span').textContent='再按删除'; setTimeout(()=>{ if(d.dataset.sure){ delete d.dataset.sure; d.querySelector('span').textContent='删除'; } },2500); return; }
+  pages.splice(i,1); await dbDel(p.id); await dbOrder(); renderGrid();
+  if(!pages.length){ closeViewer(); toast('已删除'); return; }
+  $('vTrack').children[i].remove(); vIdx=Math.min(i,pages.length-1); $('vTrack').scrollLeft=vIdx*$('vTrack').clientWidth; vMeta(); toast('已删除');
+};
+function rot90(c, q){ const r=document.createElement('canvas'); r.width=c.height; r.height=c.width; const x=r.getContext('2d'); x.translate(r.width,0); x.rotate(Math.PI/2); x.drawImage(c,0,0);
+  const H=c.height, nq=q.map(p=>({x:H-p.y,y:p.x})); return {c:r, q:[nq[3],nq[0],nq[1],nq[2]]}; }
 
 /* ---------- editor ---------- */
 function startEdit(c, blob, q, f, idx, sample, conf){
   src = c; srcBlob = blob; filter = f; editingIndex = idx; isSample = !!sample;
   if(q){ quad = q.map(p=>({...p})); srcConf = conf==null?null:conf; } else { const d=detectQ(c); quad = d.quad || insetQuad(c); srcConf = d.conf; }
   $('edConf').textContent = srcConf==null ? '' : `找边把握 ${srcConf}%`;
-  $('editor').hidden = false; $('edTag').hidden = !isSample;
+  $('editor').hidden = false; $('editor').scrollTop = 0; $('edTag').hidden = !isSample;
   $('edTitle').textContent = idx>=0 ? `修改第 ${idx+1} 页` : (queue.length ? `调整边角（还有 ${queue.length} 张）` : '调整边角');
   $('btnSave').textContent = idx>=0 ? '✓ 保存修改' : '✓ 加入文件';
   document.querySelectorAll('.chips .chip').forEach(b=>b.setAttribute('aria-pressed', b.dataset.f===filter));
@@ -399,19 +513,15 @@ function showLoupe(){
   lc.fillStyle='#000'; lc.fillRect(0,0,S,S); lc.drawImage(src, p.x-half, p.y-half, half*2, half*2, 0,0,S,S);
   lc.strokeStyle='#F2C14E'; lc.lineWidth=2; lc.beginPath(); lc.moveTo(S/2,S/2-18); lc.lineTo(S/2,S/2+18); lc.moveTo(S/2-18,S/2); lc.lineTo(S/2+18,S/2); lc.stroke();
 }
-$('btnRot').onclick = ()=>{
-  const r=document.createElement('canvas'); r.width=src.height; r.height=src.width; const c=r.getContext('2d');
-  c.translate(r.width,0); c.rotate(Math.PI/2); c.drawImage(src,0,0);
-  const H=src.height, nq=quad.map(p=>({x:H-p.y,y:p.x}));
-  src=r; srcBlob=null; quad=[nq[3],nq[0],nq[1],nq[2]]; cv.width=src.width; cv.height=src.height; draw(); schedulePreview();
-};
+$('btnRot').onclick = ()=>{ const r=rot90(src,quad); src=r.c; srcBlob=null; quad=r.q; cv.width=src.width; cv.height=src.height; draw(); schedulePreview(); };
 $('btnFull').onclick = ()=>{ quad=fullQuad(src); draw(); schedulePreview(); };
 $('btnAuto').onclick = ()=>{ const d=detectQ(src); if(d.quad){quad=d.quad; srcConf=d.conf; $('edConf').textContent=`找边把握 ${d.conf}%`; draw(); schedulePreview(); toast(d.conf<CONF_OK?'找到了，但没把握，请看看四个角':'已自动找边，不准的话再拖一下')} else toast('没找到清楚的纸边，请手动拖四个角'); };
 document.querySelectorAll('.chips .chip').forEach(b=>b.onclick=()=>{ filter=b.dataset.f; document.querySelectorAll('.chips .chip').forEach(x=>x.setAttribute('aria-pressed', x===b)); schedulePreview(); });
 $('btnSave').onclick = async ()=>{
   busy(true,'处理中…'); await tick();
   try{
-    if(editingIndex>=0){ const old=pages[editingIndex]; const p=await finish(src,srcBlob,quad,filter,false,old.id,srcConf); pages[editingIndex]=p; await dbPut(p); toast(`第 ${editingIndex+1} 页已更新`); }
+    if(editingIndex>=0){ const old=pages[editingIndex]; const p=await finish(src,srcBlob,quad,filter,false,old.id,srcConf);
+      if(!$('viewer').hidden) await vReplace(editingIndex,p); else { pages[editingIndex]=p; await dbPut(p); } toast(`第 ${editingIndex+1} 页已更新`); }
     else { const p=await finish(src,srcBlob,quad,filter,false,null,srcConf); pages.push(p); await dbPut(p); await dbOrder(); autoName(); toast(`已加入第 ${pages.length} 页`); }
   } catch(e){ toast('保存失败，手机内存可能不够，请先导出一部分'); }
   finally{ busy(false); }
@@ -506,9 +616,7 @@ function renderGrid(){
     const el=document.createElement('div'); el.className='page';
     el.innerHTML=`<button class="thumb${p.check?' check':''}" type="button" aria-label="修改第 ${i+1} 页"><img alt="" src="${p.thumb}">${p.check?'<span class="dot" title="找边没把握"></span>':''}</button>
       <div class="pmeta"><span class="pnum">P${i+1}</span><div class="pact"><button class="mini" data-a="l" type="button" aria-label="往前移">‹</button><button class="mini del" data-a="d" type="button" aria-label="删除">✕</button><button class="mini" data-a="r" type="button" aria-label="往后移">›</button></div></div>`;
-    el.querySelector('.thumb').onclick=async()=>{ busy(true,'打开中…'); await tick();
-      try{ await core(); const c=await blobToCanvas(p.src); startEdit(c,p.src,p.quad,p.filter,i,false,p.conf); $('editor').scrollIntoView({behavior:'smooth'}); }
-      catch(e){ toast('这一页打不开'); } finally{ busy(false); } };
+    el.querySelector('.thumb').onclick=()=>openViewer(i);
     el.querySelectorAll('.mini').forEach(b=>b.onclick=async()=>{const a=b.dataset.a;
       if(a==='d'){ if(b.dataset.sure){ pages.splice(i,1); await dbDel(p.id); await dbOrder(); renderGrid(); }
         else { b.dataset.sure=1; b.textContent='删'; setTimeout(()=>{if(b.isConnected){delete b.dataset.sure;b.textContent='✕'}},2500);} return;}
@@ -610,34 +718,12 @@ $('btnSaveOut').onclick = async ()=>{
   }catch(e){ busy(false); toast('保存失败，页面太多可以分两次'); }
 };
 
-/* ---------- sample: a skewed, unevenly lit conote photo ---------- */
-function makeSample(){
-  const W=1200,H=1600,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d');
-  const g=x.createLinearGradient(0,0,W,H);g.addColorStop(0,'#5a4636');g.addColorStop(1,'#2e231b');x.fillStyle=g;x.fillRect(0,0,W,H);
-  const q=[{x:210,y:170},{x:1010,y:240},{x:1080,y:1420},{x:130,y:1370}];
-  x.save();x.shadowColor='rgba(0,0,0,.5)';x.shadowBlur=40;x.shadowOffsetY=14;x.fillStyle='#f3ecd9';x.beginPath();q.forEach((p,i)=>i?x.lineTo(p.x,p.y):x.moveTo(p.x,p.y));x.closePath();x.fill();x.restore();
-  x.save();x.beginPath();q.forEach((p,i)=>i?x.lineTo(p.x,p.y):x.moveTo(p.x,p.y));x.closePath();x.clip();
-  const pw=800,ph=1150; x.setTransform((q[1].x-q[0].x)/pw,(q[1].y-q[0].y)/pw,(q[3].x-q[0].x)/ph,(q[3].y-q[0].y)/ph,q[0].x,q[0].y);
-  x.fillStyle='#1d2a4a';x.font='bold 44px sans-serif';x.fillText('CONSIGNMENT NOTE',60,100);
-  x.font='26px sans-serif';x.fillText('Conote No.  004718',60,150);x.fillText('Date: 13/11/2026',520,150);
-  x.strokeStyle='#1d2a4a';x.lineWidth=2;
-  const rows=[['Shipper','SAMPLE TRADING'],['Consignee','DEMO HARDWARE'],['Destination','TWU'],['HAWB','HW-20931'],['Description','3 CTN SPARE PARTS'],['Weight','42 KG']];
-  rows.forEach((r,i)=>{const y=200+i*90;x.strokeRect(60,y,680,90);x.beginPath();x.moveTo(260,y);x.lineTo(260,y+90);x.stroke();x.font='24px sans-serif';x.fillText(r[0],75,y+55);x.fillStyle='#1f3fa8';x.font='italic 30px serif';x.fillText(r[1],285,y+57);x.fillStyle='#1d2a4a';});
-  x.font='22px sans-serif';x.fillText('Received in good order and condition',60,850);x.beginPath();x.moveTo(60,980);x.lineTo(360,980);x.stroke();x.fillText('Signature',60,1010);
-  x.strokeStyle='#1f3fa8';x.lineWidth=3;x.beginPath();x.moveTo(80,960);x.bezierCurveTo(130,900,170,1000,220,940);x.bezierCurveTo(250,910,280,970,330,930);x.stroke();
-  x.restore();
-  const sh=x.createRadialGradient(950,1300,50,950,1300,900);sh.addColorStop(0,'rgba(0,0,0,.45)');sh.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=sh;x.fillRect(0,0,W,H);
-  const lt=x.createRadialGradient(300,300,20,300,300,700);lt.addColorStop(0,'rgba(255,240,200,.18)');lt.addColorStop(1,'rgba(255,240,200,0)');x.fillStyle=lt;x.fillRect(0,0,W,H);
-  return {c,q};
-}
-
 /* ---------- boot ---------- */
 closeEditor(); renderGrid();
 (async()=>{
   idb = await openDb();
   const saved = await dbLoad();
   if(saved.length){ pages = saved; renderGrid(); toast(`已恢复上次的 ${saved.length} 页`); }
-  else { const s=makeSample(); startEdit(s.c, null, s.q, 'enhance', -1, true); }
 })();
 })();
 </script>
