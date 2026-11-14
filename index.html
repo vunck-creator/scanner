@@ -68,7 +68,6 @@ h1 small{display:block;font-family:var(--f-body);font-size:14px;color:var(--mute
 .empty{color:var(--muted);font-size:15px;padding:14px;border:1px dashed var(--line);border-radius:12px;grid-column:1/-1}
 .page{display:flex;flex-direction:column;gap:4px;align-items:stretch;min-width:0}
 .thumb{position:relative;aspect-ratio:3/4;max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.thumb.check{border:2px solid var(--mark)}
 .thumb img{max-width:100%;max-height:100%}
 .badge{position:absolute;left:4px;top:4px;background:var(--mark);color:#14201C;font-size:11px;font-weight:700;border-radius:4px;padding:1px 5px}
 .pmeta{display:flex;justify-content:space-between;align-items:center;gap:2px}
@@ -95,6 +94,26 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
 .busy{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:30;color:#fff;font-size:17px}
 .bar{width:min(260px,70vw);height:8px;background:rgba(255,255,255,.25);border-radius:4px;overflow:hidden}
 .bar i{display:block;height:100%;width:0;background:var(--mark)}
+/* in-app camera: shoot many pages in a row, no confirm step */
+.cam{position:fixed;inset:0;z-index:40;background:#000;display:flex;flex-direction:column;color:#fff}
+.camview{position:relative;flex:1;min-height:0;overflow:hidden}
+.camview video,.camview canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.camtop{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;z-index:2}
+.camhint{background:rgba(0,0,0,.55);border-radius:999px;padding:6px 14px;font-size:14px}
+.camx{appearance:none;border:0;background:rgba(0,0,0,.55);color:#fff;border-radius:999px;width:44px;height:44px;font-size:20px;cursor:pointer}
+.cambar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:14px 20px calc(18px + env(safe-area-inset-bottom,0px));background:#000}
+.shutter{appearance:none;width:76px;height:76px;border-radius:50%;border:5px solid #fff;background:#fff;box-shadow:inset 0 0 0 4px #000;cursor:pointer}
+.shutter:active{transform:scale(.93)}.shutter:disabled{opacity:.5}
+.camthumb{justify-self:start;position:relative;width:56px;height:72px;border-radius:8px;border:2px solid #fff;background:#222;padding:0;overflow:hidden;cursor:pointer}
+.camthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.camthumb b{position:absolute;right:-2px;top:-2px;background:var(--mark);color:#14201C;font-size:13px;border-radius:999px;min-width:24px;padding:0 6px;font-family:var(--f-display)}
+.camdone{justify-self:end;background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.flash.on{animation:fl .25s ease-out}@keyframes fl{from{opacity:.75}to{opacity:0}}
+.dot{position:absolute;right:5px;top:5px;width:14px;height:14px;border-radius:50%;background:var(--danger);box-shadow:0 0 0 2px #fff}
+.thumb.check{border:2px solid var(--danger)}
+.conf{font-size:12px;color:var(--muted)}
+.proc{font-size:14px;color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.btn,.chip{transition:background .15s,transform .1s}.btn:active{transform:scale(.98)}.bar i{transition:width .2s}}
 </style>
 
@@ -105,11 +124,11 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
 
   <label class="quick" for="quick">
     <input type="checkbox" id="quick" checked>
-    <div><b>快速模式</b><span>拍完自动找边、变白、直接加入，不用逐张确认。黄框的页面请点开检查。</span></div>
+    <div><b>快速模式（相册）</b><span>相册多选也自动找边、变白、直接加入。带红点的页面是没把握的，点开修一下。</span></div>
   </label>
 
   <div class="editor" id="editor">
-    <div class="edhead"><b id="edTitle">调整边角</b><span class="tag" id="edTag">示例</span></div>
+    <div class="edhead"><b id="edTitle">调整边角</b><span class="conf" id="edConf"></span><span class="tag" id="edTag">示例</span></div>
     <p class="hint">拖动四个黄点对准单据四角，按住时会放大给你看。</p>
     <div class="stage" id="stage"><canvas id="cv"></canvas><canvas id="loupe" width="220" height="220" hidden></canvas></div>
     <div class="tools">
@@ -131,7 +150,7 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
   </div>
 
   <section>
-    <div class="sechead"><h2>已扫描 <b id="count">0</b> 页</h2><button class="linkbtn" id="btnClear" type="button" hidden>清空全部</button></div>
+    <div class="sechead"><h2>已扫描 <b id="count">0</b> 页 <span class="proc" id="proc"></span></h2><button class="linkbtn" id="btnClear" type="button" hidden>清空全部</button></div>
     <div class="grid" id="grid"><div class="empty">还没有页面。点下面“拍照”开始扫描。</div></div>
   </section>
 
@@ -159,16 +178,38 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
   <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
   <input type="file" id="filePick" accept="image/*" multiple hidden>
 </div></div>
+<div class="cam" id="cam" hidden>
+  <div class="camview"><video id="vid" playsinline muted autoplay></video><canvas id="camOv"></canvas><div class="flash" id="flash"></div>
+    <div class="camtop"><span class="camhint" id="camHint">对准文件，按快门。拍完一张直接拍下一张</span><button class="camx" id="camClose" type="button" aria-label="关闭相机">✕</button></div></div>
+  <div class="cambar">
+    <button class="camthumb" id="camThumb" type="button" aria-label="完成并查看"><img id="camLast" alt="" hidden><b id="camN">0</b></button>
+    <button class="shutter" id="shutter" type="button" aria-label="拍照"></button>
+    <button class="btn camdone" id="camDone" type="button">完成</button>
+  </div>
+</div>
 <div id="toast" hidden></div>
 <div class="busy" id="busy" hidden><span id="busyText">处理中…</span><div class="bar"><i id="busyBar"></i></div></div>
 
+<script src="scan-core.js"></script>
 <script>
 (() => {
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d'), out = $('out'), loupe = $('loupe');
 const MAXSRC = 2400, MAXOUT = 2000, JPGQ = 0.85;
 let src = null, quad = null, filter = 'enhance', editingIndex = -1, isSample = false, srcBlob = null;
-let pages = [];      // {id, src:Blob, quad, filter, out:Blob, w, h, thumb, check}
+let pages = [];      // {id, src:Blob, quad, filter, out:Blob, w, h, thumb, check, conf}
+const CONF_OK = 55;  // below this the page gets a red dot
+let srcConf = null;
+/* ---------- OpenCV core (loads in the background; old pure-JS code is the fallback) ---------- */
+let coreOk = false;
+const coreP = (window.ScanCore ? ScanCore.load('opencv.js') : Promise.reject()).then(()=>{coreOk=true}).catch(()=>{});
+async function core(){ if(coreOk) return true; await Promise.race([coreP, new Promise(r=>setTimeout(r,30000))]); return coreOk; }
+function detectQ(c){
+  if(coreOk){ const r=ScanCore.detect(c); return r&&r.quad ? r : {quad:null,conf:0}; }
+  const q=autoDetect(c); return {quad:q, conf:q?50:0};
+}
+function render(c,q,f,max){ return coreOk ? ScanCore.filter(ScanCore.warp(c,q,max),f) : applyFilter(warp(c,q),f); }
+const encodeOut = c => coreOk ? ScanCore.encode(c) : toBlob(c);
 let queue = [];
 let fmt = 'pdf';
 const inClaude = !!(window.claude && window.claude.use);
@@ -209,13 +250,13 @@ function loadFile(file){
 async function blobToCanvas(b){ const bmp=await createImageBitmap(b); const c=document.createElement('canvas'); c.width=bmp.width; c.height=bmp.height; c.getContext('2d').drawImage(bmp,0,0); bmp.close&&bmp.close(); return c; }
 const toBlob = (c,q=JPGQ) => new Promise(r=>c.toBlob(r,'image/jpeg',q));
 function makeThumb(c){const t=document.createElement('canvas'),s=240/Math.max(c.width,c.height);t.width=Math.round(c.width*s);t.height=Math.round(c.height*s);t.getContext('2d').drawImage(c,0,0,t.width,t.height);return t.toDataURL('image/jpeg',.7)}
-async function finish(srcC, sBlob, q, f, check, id){
-  const r = applyFilter(warp(srcC,q), f);
-  return { id: id||uid(), src: sBlob || await toBlob(srcC,0.9), quad:q.map(p=>({...p})), filter:f, out: await toBlob(r), w:r.width, h:r.height, thumb:makeThumb(r), check:!!check };
+async function finish(srcC, sBlob, q, f, check, id, conf){
+  const r = render(srcC, q, f);
+  return { id: id||uid(), src: sBlob || await toBlob(srcC,0.9), quad:q.map(p=>({...p})), filter:f, out: await encodeOut(r), w:r.width, h:r.height, thumb:makeThumb(r), check:!!check, conf: conf==null?null:conf };
 }
 
 /* ---------- capture ---------- */
-$('btnCam').onclick = () => $('fileCam').click();
+$('btnCam').onclick = () => (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) ? openCam() : $('fileCam').click();
 $('btnPick').onclick = () => $('filePick').click();
 $('fileCam').onchange = e => { handleFiles(e.target.files); e.target.value=''; };
 $('filePick').onchange = e => { handleFiles(e.target.files); e.target.value=''; };
@@ -226,27 +267,102 @@ async function handleFiles(list){
 }
 async function batch(files){
   let ok=0, bad=0, chk=0;
+  busy(true,'准备中…'); await core();
   for(let i=0;i<files.length;i++){
     busy(true, files.length>1?`处理中 ${i+1} / ${files.length}`:'处理中…', files.length>1?i/files.length:null); await tick();
-    try{ const c=await loadFile(files[i]); const q=autoDetect(c); const p=await finish(c,null,q||insetQuad(c),'enhance',!q);
-      pages.push(p); await dbPut(p); ok++; if(!q) chk++; }
+    try{ const c=await loadFile(files[i]); const d=detectQ(c), low=d.conf<CONF_OK; const p=await finish(c,null,d.quad||insetQuad(c),'enhance',low,null,d.conf);
+      pages.push(p); await dbPut(p); ok++; if(low) chk++; }
     catch(e){ bad++; }
   }
   await dbOrder(); autoName(); busy(false); renderGrid(); closeEditor();
-  let msg = `已加入 ${ok} 页，共 ${pages.length} 页`; if(chk) msg += `｜${chk} 页没找到纸边，请点黄框检查`; if(bad) msg += `｜${bad} 张打不开`;
+  let msg = `已加入 ${ok} 页，共 ${pages.length} 页`; if(chk) msg += `｜${chk} 页标了红点，点开修一下`; if(bad) msg += `｜${bad} 张打不开`;
   toast(msg);
 }
 async function nextInQueue(){
   const f = queue.shift(); if(!f) return false;
-  try{ busy(true,'处理中…'); await tick(); const c = await loadFile(f); startEdit(c, null, null, 'enhance', -1, false); }
+  try{ busy(true,'处理中…'); await core(); await tick(); const c = await loadFile(f); startEdit(c, null, null, 'enhance', -1, false); }
   catch(e){ toast('这张图片打不开，换一张试试'); }
   finally{ busy(false); }
   return true;
 }
 
+/* ---------- in-app camera: tap shutter, keep shooting, no confirm per page ---------- */
+const vid=$('vid'), ov=$('camOv');
+let stream=null, ic=null, liveT=0, jobs=[], working=false, lastShot=0, sess={n:0,low:0,bad:0}, camOpen=false;
+async function openCam(){
+  try{ stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:3840}, height:{ideal:2160}}}); }
+  catch(e){ toast('打不开相机（可能没给权限），改用手机自带相机'); $('fileCam').click(); return; }
+  vid.srcObject=stream; try{ await vid.play(); }catch(e){}
+  ic=null; try{ if('ImageCapture' in window) ic=new ImageCapture(stream.getVideoTracks()[0]); }catch(e){}
+  camOpen=true; $('cam').hidden=false; document.body.style.overflow='hidden'; closeEditor();
+  sess={n:0,low:0,bad:0}; $('camN').textContent='0'; $('camLast').hidden=true; $('shutter').disabled=false;
+  core(); live();
+}
+function closeCam(){
+  camOpen=false; clearTimeout(liveT); if(stream) stream.getTracks().forEach(t=>t.stop()); stream=null; vid.srcObject=null;
+  $('cam').hidden=true; document.body.style.overflow=''; renderGrid(); pump();
+  if(sess.n && !jobs.length && !working) camSummary();
+  $('grid').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function camSummary(){ if(!sess.n) return; let m=`本次拍了 ${sess.n} 页`; if(sess.low) m+=`，${sess.low} 页带红点，点开修一下`; else m+='，全部找边有把握 👍'; if(sess.bad) m+=`｜${sess.bad} 张处理失败`; toast(m); sess={n:0,low:0,bad:0}; }
+$('camDone').onclick = closeCam; $('camClose').onclick = closeCam; $('camThumb').onclick = closeCam;
+// live outline so you can see what will be cropped
+function live(){
+  clearTimeout(liveT); if(!camOpen) return;
+  liveT=setTimeout(()=>{
+    const vw=vid.videoWidth, vh=vid.videoHeight, W=ov.clientWidth, H=ov.clientHeight, dpr=devicePixelRatio||1;
+    if(ov.width!==Math.round(W*dpr)){ ov.width=Math.round(W*dpr); ov.height=Math.round(H*dpr); }
+    const o=ov.getContext('2d'); o.clearRect(0,0,ov.width,ov.height);
+    if(coreOk && vw && !working){
+      const s=480/Math.max(vw,vh), c=document.createElement('canvas'); c.width=Math.round(vw*s); c.height=Math.round(vh*s);
+      c.getContext('2d').drawImage(vid,0,0,c.width,c.height);
+      const r=ScanCore.detect(c);
+      if(r && r.quad){
+        const k=Math.min(W/vw,H/vh)*dpr, ox=(W*dpr-vw*k)/2, oy=(H*dpr-vh*k)/2, good=r.conf>=CONF_OK;
+        o.lineWidth=3*dpr; o.strokeStyle=good?'#2FB98E':'#F2C14E'; o.fillStyle=good?'rgba(47,185,142,.18)':'rgba(242,193,78,.12)';
+        o.beginPath(); r.quad.forEach((p,i)=>{const x=ox+p.x/s*k, y=oy+p.y/s*k; i?o.lineTo(x,y):o.moveTo(x,y)}); o.closePath(); o.fill(); o.stroke();
+      }
+    }
+    live();
+  }, 280);
+}
+$('shutter').onclick = async ()=>{
+  if(!vid.videoWidth || $('shutter').disabled) return;
+  const f=$('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); try{navigator.vibrate&&navigator.vibrate(25)}catch(e){}
+  const vw=vid.videoWidth, vh=vid.videoHeight, frame=document.createElement('canvas'); frame.width=vw; frame.height=vh; frame.getContext('2d').drawImage(vid,0,0);
+  const t=document.createElement('canvas'), ts=160/Math.max(vw,vh); t.width=vw*ts; t.height=vh*ts; t.getContext('2d').drawImage(frame,0,0,t.width,t.height);
+  $('camLast').src=t.toDataURL('image/jpeg',.6); $('camLast').hidden=false; sess.n++; $('camN').textContent=sess.n; lastShot=Date.now();
+  let blob=null, fromFrame=false;
+  if(ic){ $('shutter').disabled=true; try{ blob=await ic.takePhoto(); }catch(e){ ic=null; } $('shutter').disabled=false; }
+  if(!blob){ blob=await toBlob(frame,0.92); fromFrame=true; }
+  jobs.push({blob, fromFrame, portrait: vh>vw}); updProc(); setTimeout(pump, 1600);
+};
+function updProc(){ const n=jobs.length+(working?1:0); $('proc').textContent = n?`· 处理中还剩 ${n} 张`:''; }
+async function loadShot(j){
+  let c = await loadFile(j.blob);
+  // some phones hand back the full-res photo in sensor (landscape) orientation; turn it to match what you saw
+  if(!j.fromFrame && j.portrait && c.width>c.height){ const r=document.createElement('canvas'); r.width=c.height; r.height=c.width; const x=r.getContext('2d'); x.translate(r.width,0); x.rotate(Math.PI/2); x.drawImage(c,0,0); c=r; }
+  return c;
+}
+// processes shots one by one; while the camera is open it waits for a pause between shots so the shutter stays snappy
+async function pump(){
+  if(working) return; working=true;
+  while(jobs.length){
+    if(camOpen && Date.now()-lastShot<1500){ working=false; updProc(); setTimeout(pump, 1600-(Date.now()-lastShot)); return; }
+    const j=jobs.shift(); updProc(); await tick();
+    try{ await core(); const c=await loadShot(j); const d=detectQ(c), low=d.conf<CONF_OK;
+      const p=await finish(c,null,d.quad||insetQuad(c),'enhance',low,null,d.conf); pages.push(p); await dbPut(p); await dbOrder(); if(low) sess.low++; }
+    catch(e){ sess.bad++; }
+    autoName(); if(!camOpen) renderGrid();
+  }
+  working=false; updProc(); if(!camOpen){ renderGrid(); camSummary(); }
+}
+
 /* ---------- editor ---------- */
-function startEdit(c, blob, q, f, idx, sample){
-  src = c; srcBlob = blob; quad = q ? q.map(p=>({...p})) : autoDetect(c) || insetQuad(c); filter = f; editingIndex = idx; isSample = !!sample;
+function startEdit(c, blob, q, f, idx, sample, conf){
+  src = c; srcBlob = blob; filter = f; editingIndex = idx; isSample = !!sample;
+  if(q){ quad = q.map(p=>({...p})); srcConf = conf==null?null:conf; } else { const d=detectQ(c); quad = d.quad || insetQuad(c); srcConf = d.conf; }
+  $('edConf').textContent = srcConf==null ? '' : `找边把握 ${srcConf}%`;
   $('editor').hidden = false; $('edTag').hidden = !isSample;
   $('edTitle').textContent = idx>=0 ? `修改第 ${idx+1} 页` : (queue.length ? `调整边角（还有 ${queue.length} 张）` : '调整边角');
   $('btnSave').textContent = idx>=0 ? '✓ 保存修改' : '✓ 加入文件';
@@ -289,13 +405,13 @@ $('btnRot').onclick = ()=>{
   src=r; srcBlob=null; quad=[nq[3],nq[0],nq[1],nq[2]]; cv.width=src.width; cv.height=src.height; draw(); schedulePreview();
 };
 $('btnFull').onclick = ()=>{ quad=fullQuad(src); draw(); schedulePreview(); };
-$('btnAuto').onclick = ()=>{ const q=autoDetect(src); if(q){quad=q; draw(); schedulePreview(); toast('已自动找边，不准的话再拖一下')} else toast('没找到清楚的纸边，请手动拖四个角'); };
+$('btnAuto').onclick = ()=>{ const d=detectQ(src); if(d.quad){quad=d.quad; srcConf=d.conf; $('edConf').textContent=`找边把握 ${d.conf}%`; draw(); schedulePreview(); toast(d.conf<CONF_OK?'找到了，但没把握，请看看四个角':'已自动找边，不准的话再拖一下')} else toast('没找到清楚的纸边，请手动拖四个角'); };
 document.querySelectorAll('.chips .chip').forEach(b=>b.onclick=()=>{ filter=b.dataset.f; document.querySelectorAll('.chips .chip').forEach(x=>x.setAttribute('aria-pressed', x===b)); schedulePreview(); });
 $('btnSave').onclick = async ()=>{
   busy(true,'处理中…'); await tick();
   try{
-    if(editingIndex>=0){ const old=pages[editingIndex]; const p=await finish(src,srcBlob,quad,filter,false,old.id); pages[editingIndex]=p; await dbPut(p); toast(`第 ${editingIndex+1} 页已更新`); }
-    else { const p=await finish(src,srcBlob,quad,filter,false); pages.push(p); await dbPut(p); await dbOrder(); autoName(); toast(`已加入第 ${pages.length} 页`); }
+    if(editingIndex>=0){ const old=pages[editingIndex]; const p=await finish(src,srcBlob,quad,filter,false,old.id,srcConf); pages[editingIndex]=p; await dbPut(p); toast(`第 ${editingIndex+1} 页已更新`); }
+    else { const p=await finish(src,srcBlob,quad,filter,false,null,srcConf); pages.push(p); await dbPut(p); await dbOrder(); autoName(); toast(`已加入第 ${pages.length} 页`); }
   } catch(e){ toast('保存失败，手机内存可能不够，请先导出一部分'); }
   finally{ busy(false); }
   renderGrid(); if(!(await nextInQueue())) closeEditor();
@@ -374,6 +490,7 @@ function applyFilter(c, f){
 }
 let pv=0;
 function schedulePreview(){ const my=++pv; setTimeout(()=>{ if(my!==pv||!src) return;
+  if(coreOk){ const r=render(src,quad,filter,900); out.width=r.width; out.height=r.height; out.getContext('2d').drawImage(r,0,0); return; }
   const s=0.5, q=quad.map(p=>({x:p.x*s,y:p.y*s})); const small=document.createElement('canvas'); small.width=Math.round(src.width*s); small.height=Math.round(src.height*s); small.getContext('2d').drawImage(src,0,0,small.width,small.height);
   const r=applyFilter(warp(small,q),filter); out.width=r.width; out.height=r.height; out.getContext('2d').drawImage(r,0,0); },60); }
 
@@ -382,13 +499,14 @@ function renderGrid(){
   const g=$('grid'); g.innerHTML='';
   $('count').textContent = pages.length; $('btnClear').hidden = !pages.length;
   updateExport();
+  const nc=pages.filter(p=>p.check).length; $('count').textContent = pages.length + (nc?`（${nc} 页红点待修）`:'');
   if(!pages.length){g.innerHTML='<div class="empty">还没有页面。点下面“拍照”开始扫描，可以连续拍很多张。</div>';return}
   pages.forEach((p,i)=>{
     const el=document.createElement('div'); el.className='page';
-    el.innerHTML=`<button class="thumb${p.check?' check':''}" type="button" aria-label="修改第 ${i+1} 页"><img alt="" src="${p.thumb}">${p.check?'<span class="badge">请检查</span>':''}</button>
+    el.innerHTML=`<button class="thumb${p.check?' check':''}" type="button" aria-label="修改第 ${i+1} 页"><img alt="" src="${p.thumb}">${p.check?'<span class="dot" title="找边没把握"></span>':''}</button>
       <div class="pmeta"><span class="pnum">P${i+1}</span><div class="pact"><button class="mini" data-a="l" type="button" aria-label="往前移">‹</button><button class="mini del" data-a="d" type="button" aria-label="删除">✕</button><button class="mini" data-a="r" type="button" aria-label="往后移">›</button></div></div>`;
     el.querySelector('.thumb').onclick=async()=>{ busy(true,'打开中…'); await tick();
-      try{ const c=await blobToCanvas(p.src); startEdit(c,p.src,p.quad,p.filter,i,false); $('editor').scrollIntoView({behavior:'smooth'}); }
+      try{ await core(); const c=await blobToCanvas(p.src); startEdit(c,p.src,p.quad,p.filter,i,false,p.conf); $('editor').scrollIntoView({behavior:'smooth'}); }
       catch(e){ toast('这一页打不开'); } finally{ busy(false); } };
     el.querySelectorAll('.mini').forEach(b=>b.onclick=async()=>{const a=b.dataset.a;
       if(a==='d'){ if(b.dataset.sure){ pages.splice(i,1); await dbDel(p.id); await dbOrder(); renderGrid(); }
