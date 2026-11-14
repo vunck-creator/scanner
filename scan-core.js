@@ -286,12 +286,15 @@
     rgb.convertTo(f, cv.CV_32F); bg.convertTo(fb, cv.CV_32F, 1, 1);
     cv.divide(f, fb, n, 255);
     // sharpen (unsharp mask)
-    const bl = M(new cv.Mat()); cv.GaussianBlur(n, bl, new cv.Size(0, 0), 1.3);
-    cv.addWeighted(n, 1.7, bl, -0.7, 0, n);
+    // gentle, wide sharpening (crisp but no jagged halo), then thicken strokes a touch so print reads bold like CamScanner
+    const bl = M(new cv.Mat()); cv.GaussianBlur(n, bl, new cv.Size(0, 0), 2.0);
+    cv.addWeighted(n, 1.45, bl, -0.45, 0, n);
+    const er = M(new cv.Mat()); cv.erode(n, er, M(cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3))));
+    cv.addWeighted(n, 0.7, er, 0.3, 0, n);
     const W = n.cols, H = n.rows, d = n.data32F, out = new Uint8ClampedArray(W * H * 4);
-    const lo = 80, hi = 226, span = hi - lo;
+    const lo = 95, hi = 222, span = hi - lo;
     const curve = new Uint8Array(512); // index = value+128 clamp
-    for (let i = 0; i < 512; i++) { const v = i - 128; let t = (v - lo) / span; t = t < 0 ? 0 : t > 1 ? 1 : t; curve[i] = Math.round(255 * Math.pow(t, 1.75)); }
+    for (let i = 0; i < 512; i++) { const v = i - 128; let t = (v - lo) / span; t = t < 0 ? 0 : t > 1 ? 1 : t; curve[i] = Math.round(255 * Math.pow(t, 2.0)); }
     const cl = v => curve[v < -128 ? 0 : v > 383 ? 511 : (v + 128) | 0];
     const ink = v => { let t = (v - 60) / 190; t = t < 0 ? 0 : t > 1 ? 1 : t; return 255 * Math.pow(t, 2.4); };
     if (mode === 'gray' || mode === 'bw') {
@@ -323,7 +326,7 @@
       for (let k = 0; k < n; k += 2) { const i = ((y0 + dy * k) * W + (x0 + dx * k)) * 4, r = px[i], g = px[i + 1], b = px[i + 2];
         m++; if (r + g + b < 600 || Math.max(r, g, b) - Math.min(r, g, b) > 50) c++; }
       return c / m; };
-    const walk = (len, f) => { const mx = Math.round(len * 0.035); let i = 0; while (i < mx && f(i) > 0.12) i++; return (i === 0 || i >= mx) ? 0 : Math.min(mx, i + 2); };
+    const walk = (len, f) => { const mx = Math.round(len * 0.035); let i = 0; while (i < mx && f(i) > 0.6) i++; return (i === 0 || i >= mx) ? 0 : Math.min(mx, i + 2); };
     const l = walk(W, i => dirty(i, 0, 0, 1, H)), r = walk(W, i => dirty(W - 1 - i, 0, 0, 1, H));
     const t = walk(H, i => dirty(0, i, 1, 0, W)), b = walk(H, i => dirty(0, H - 1 - i, 1, 0, W));
     return { x: l, y: t, w: W - l - r, h: H - t - b };
