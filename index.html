@@ -139,7 +139,7 @@ input[type=text]{font:inherit;font-size:16px;padding:10px 12px;border-radius:10p
 
 <div class="wrap">
   <header>
-    <h1>文件扫描仪<small>拍照 · 裁边 · 变白 · PDF / JPEG · <span class="ver">v6 · 2026-11-14</span></small></h1>
+    <h1>文件扫描仪<small>拍照 · 裁边 · 变白 · PDF / JPEG · <span class="ver">v7 · 2026-11-14</span></small></h1>
   </header>
 
   <label class="quick" for="quick">
@@ -229,7 +229,7 @@ const cv = $('cv'), ctx = cv.getContext('2d'), out = $('out'), loupe = $('loupe'
 const MAXSRC = 2400, MAXOUT = 2000, JPGQ = 0.85;
 let src = null, quad = null, filter = 'enhance', editingIndex = -1, isSample = false, srcBlob = null;
 let pages = [];      // {id, src:Blob, quad, filter, out:Blob, w, h, thumb, check, conf}
-const CONF_OK = 55;  // below this the page gets a red dot
+const CONF_OK = 60;  // below this the page gets a red dot
 let srcConf = null;
 /* ---------- OpenCV core (loads in the background; old pure-JS code is the fallback) ---------- */
 let coreOk = false;

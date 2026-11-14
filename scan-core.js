@@ -67,9 +67,23 @@
     const dl = (d[i] - d[j]) * 0.392, da = d[i + 1] - d[j + 1], db = d[i + 2] - d[j + 2];
     return Math.sqrt(dl * dl + da * da + db * db);
   }
+  function lum(L, x, y) { x = x | 0; y = y | 0; if (x < 0 || y < 0 || x >= L.w || y >= L.h) return -1; return L.d[(y * L.w + x) * 3] * 0.392; }
   // How well each side of quad sits on a real "step" (paper vs background) — 0..1
   function sideSupport(L, P, Q, cx, cy, off) {
     const vx = Q.x - P.x, vy = Q.y - P.y, len = Math.hypot(vx, vy); if (len < 8) return 0;
+    // side lying on the photo's border: the sheet runs out of the frame there. Can't be measured → neutral score.
+    const bx = L.w * 0.015, by = L.h * 0.015;
+    if ((P.x < bx && Q.x < bx) || (P.x > L.w - bx && Q.x > L.w - bx) || (P.y < by && Q.y < by) || (P.y > L.h - by && Q.y > L.h - by)) {
+      // only believable if what touches the border looks like paper (light, colourless) — not keyboard, desk or a yellow sheet
+      let ok = 0; const n = 24, cx2 = (cx - (P.x + Q.x) / 2), cy2 = (cy - (P.y + Q.y) / 2), cl = Math.hypot(cx2, cy2) || 1, ix = cx2 / cl * 6, iy = cy2 / cl * 6;
+      for (let k = 0; k < n; k++) {
+        const t = 0.05 + 0.9 * k / (n - 1), x = (P.x + vx * t + ix) | 0, y = (P.y + vy * t + iy) | 0;
+        if (x < 0 || y < 0 || x >= L.w || y >= L.h) continue;
+        const i = (y * L.w + x) * 3, l = L.d[i] * 0.392, ch = Math.hypot(L.d[i + 1] - 128, L.d[i + 2] - 128);
+        if (l > 68 && ch < 14) ok++;
+      }
+      return 0.3 * ok / n;
+    }
     let nx = -vy / len, ny = vx / len;
     const mx = (P.x + Q.x) / 2, my = (P.y + Q.y) / 2;
     if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; } // outward
@@ -84,7 +98,12 @@
         if (e < best) best = e;
       }
       if (best < 0) best = 0;
-      sum += Math.max(0, Math.min(1, (best - 3) / 9));
+      let sup = Math.max(0, Math.min(1, (best - 3) / 9));
+      // paper is (almost always) lighter than what's around it. If the inside is darker, this is probably a dark
+      // printed block / keyboard / shadow edge, not the sheet's edge → count it only a little.
+      const o2 = off[off.length - 1], li = lum(L, px - nx * o2, py - ny * o2), lo = lum(L, px + nx * o2, py + ny * o2);
+      if (li >= 0 && lo >= 0 && li < lo - 12) sup *= 0.3;
+      sum += sup;
     }
     return sum / N;
   }
@@ -93,6 +112,13 @@
     const s = [0, 1, 2, 3].map(i => sideSupport(L, q[i], q[(i + 1) % 4], cx, cy, off));
     const mean = (s[0] + s[1] + s[2] + s[3]) / 4, min = Math.min(...s);
     return { v: 0.65 * mean + 0.35 * min, sides: s };
+  }
+  function inside(q, p, tol) { // p inside convex quad q (clockwise), with tolerance in px
+    for (let i = 0; i < 4; i++) {
+      const a = q[i], b = q[(i + 1) % 4], ex = b.x - a.x, ey = b.y - a.y, len = Math.hypot(ex, ey) || 1;
+      if ((ex * (p.y - a.y) - ey * (p.x - a.x)) / len < -tol) return false;
+    }
+    return true;
   }
   function area(q) { let a = 0; for (let i = 0; i < 4; i++) { const p = q[i], r = q[(i + 1) % 4]; a += p.x * r.y - r.x * p.y; } return Math.abs(a) / 2; }
   function order(pts) { // -> TL,TR,BR,BL
@@ -109,7 +135,7 @@
       const cr = ax * by - ay * bx; if (cr > 0) return false; // must stay convex (clockwise)
       const ang = Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (Math.hypot(ax, ay) * Math.hypot(bx, by) + 1e-9)))) * 180 / Math.PI;
       if (ang < 45 || ang > 135) return false;
-      if (c.x < -w * 0.03 || c.y < -h * 0.03 || c.x > w * 1.03 || c.y > h * 1.03) return false;
+      if (c.x < -w * 0.08 || c.y < -h * 0.08 || c.x > w * 1.08 || c.y > h * 1.08) return false;
     }
     return true;
   }
@@ -142,14 +168,16 @@
     const lines = M(new cv.Mat());
     cv.HoughLines(edges, lines, 1, Math.PI / 180, Math.round(Math.min(w, h) * 0.18));
     const ls = [];
-    for (let i = 0; i < lines.rows && ls.length < 24; i++) {
+    for (let i = 0; i < lines.rows && ls.length < 48; i++) {
       let r = lines.data32F[i * 2], t = lines.data32F[i * 2 + 1];
       if (r < 0) { r = -r; t -= Math.PI; }
       if (ls.some(l => Math.abs(l.r - r) < 12 && Math.min(Math.abs(l.t - t), Math.PI * 2 - Math.abs(l.t - t)) < 0.09)) continue;
       ls.push({ r, t });
     }
     const isH = l => Math.abs(Math.sin(l.t)) > 0.7071;
-    const H = ls.filter(isH).slice(0, 7), V = ls.filter(l => !isH(l)).slice(0, 7);
+    // the photo's own borders count as possible sides (sheet bigger than the frame)
+    const H = ls.filter(isH).slice(0, 16).concat([{ r: 0, t: Math.PI / 2 }, { r: h - 1, t: Math.PI / 2 }]);
+    const V = ls.filter(l => !isH(l)).slice(0, 16).concat([{ r: 0, t: 0 }, { r: w - 1, t: 0 }]);
     for (let a = 0; a < H.length; a++) for (let b = a + 1; b < H.length; b++)
       for (let c = 0; c < V.length; c++) for (let d = c + 1; d < V.length; d++) {
         const p = [lineX(H[a], V[c]), lineX(H[a], V[d]), lineX(H[b], V[d]), lineX(H[b], V[c])];
@@ -198,11 +226,9 @@
       contourQuads(th, cands, w, h);
       houghQuads(all, cands, w, h);
       const off = [3, 6];
-      let best = null, bv = -1;
-      for (const q of cands) {
-        const s = quadScore(L, q, off).v * (0.8 + 0.2 * Math.sqrt(area(q) / (w * h)));
-        if (s > bv) { bv = s; best = q; }
-      }
+      let best = null, bv = -1, braw = 0;
+      const scored = cands.map(q => { const v = quadScore(L, q, off).v, a = area(q); return { q, v, a, s: v * (0.6 + 0.4 * Math.sqrt(a / (w * h))) }; });
+      for (const c of scored) if (c.s > bv) { bv = c.s; best = c.q; braw = c.v; }
       if (!best) { free(); return { quad: null, conf: 0 }; }
       let r = refine(L, best, 1, 2, off);
       free();
@@ -267,6 +293,7 @@
     const curve = new Uint8Array(512); // index = value+128 clamp
     for (let i = 0; i < 512; i++) { const v = i - 128; let t = (v - lo) / span; t = t < 0 ? 0 : t > 1 ? 1 : t; curve[i] = Math.round(255 * Math.pow(t, 1.75)); }
     const cl = v => curve[v < -128 ? 0 : v > 383 ? 511 : (v + 128) | 0];
+    const ink = v => { let t = (v - 60) / 190; t = t < 0 ? 0 : t > 1 ? 1 : t; return 255 * Math.pow(t, 2.4); };
     if (mode === 'gray' || mode === 'bw') {
       for (let i = 0, j = 0; i < W * H; i++, j += 3) {
         let v = cl(0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]);
@@ -279,13 +306,28 @@
         const R = d[j], G = d[j + 1], B = d[j + 2], Y = 0.299 * R + 0.587 * G + 0.114 * B, Yc = cl(Y);
         const c = Math.max(R, G, B) - Math.min(R, G, B);
         // near-neutral → pure gray (kills paper tint & colour noise); real colour (ink, stamps, highlighter) kept & boosted
-        const keep = c < 16 ? 0 : c > 36 ? 1.35 : (c - 16) / 20 * 1.35;
-        const k = i * 4; out[k] = Yc + (R - Y) * keep; out[k + 1] = Yc + (G - Y) * keep; out[k + 2] = Yc + (B - Y) * keep; out[k + 3] = 255;
+        // coloured strokes (pen, stamps) get their own, darker curve and richer colour, so faint ballpoint reads like CamScanner
+        const w = c < 14 ? 0 : c > 34 ? 1 : (c - 14) / 20;
+        const Yi = w ? ink(Y) : 0, Yo = Yc + (Yi - Yc) * w, keep = w * 2.0;
+        const k = i * 4; out[k] = Yo + (R - Y) * keep; out[k + 1] = Yo + (G - Y) * keep; out[k + 2] = Yo + (B - Y) * keep; out[k + 3] = 255;
       }
     }
     free();
-    const o = mk(W, H); o.getContext('2d').putImageData(new ImageData(out, W, H), 0, 0); return o;
+    const t = trimBox(out, W, H);
+    const o = mk(t.w, t.h); o.getContext('2d').putImageData(new ImageData(out, W, H), -t.x, -t.y); return o;
   };
+  // after cropping, a thin strip of desk or of the sheets underneath can survive along an edge.
+  // Walk in from each side while the line is mostly "not paper"; cut it if it ends within 3.5%.
+  function trimBox(px, W, H) {
+    const dirty = (x0, y0, dx, dy, n) => { let c = 0, m = 0;
+      for (let k = 0; k < n; k += 2) { const i = ((y0 + dy * k) * W + (x0 + dx * k)) * 4, r = px[i], g = px[i + 1], b = px[i + 2];
+        m++; if (r + g + b < 600 || Math.max(r, g, b) - Math.min(r, g, b) > 50) c++; }
+      return c / m; };
+    const walk = (len, f) => { const mx = Math.round(len * 0.035); let i = 0; while (i < mx && f(i) > 0.12) i++; return (i === 0 || i >= mx) ? 0 : Math.min(mx, i + 2); };
+    const l = walk(W, i => dirty(i, 0, 0, 1, H)), r = walk(W, i => dirty(W - 1 - i, 0, 0, 1, H));
+    const t = walk(H, i => dirty(0, i, 1, 0, W)), b = walk(H, i => dirty(0, H - 1 - i, 1, 0, W));
+    return { x: l, y: t, w: W - l - r, h: H - t - b };
+  }
 
   /* ======================= encode ======================= */
   const toBlob = (c, q) => new Promise(r => c.toBlob(r, 'image/jpeg', q));
