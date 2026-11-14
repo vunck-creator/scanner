@@ -174,10 +174,10 @@
       if (ls.some(l => Math.abs(l.r - r) < 12 && Math.min(Math.abs(l.t - t), Math.PI * 2 - Math.abs(l.t - t)) < 0.09)) continue;
       ls.push({ r, t });
     }
-    const isH = l => Math.abs(Math.sin(l.t)) > 0.7071;
+    const isH = l => Math.abs(Math.sin(l.t)) > 0.82, isV = l => Math.abs(Math.cos(l.t)) > 0.82; // ~±35°: diagonal pattern lines are ignored
     // the photo's own borders count as possible sides (sheet bigger than the frame)
     const H = ls.filter(isH).slice(0, 16).concat([{ r: 0, t: Math.PI / 2 }, { r: h - 1, t: Math.PI / 2 }]);
-    const V = ls.filter(l => !isH(l)).slice(0, 16).concat([{ r: 0, t: 0 }, { r: w - 1, t: 0 }]);
+    const V = ls.filter(isV).slice(0, 16).concat([{ r: 0, t: 0 }, { r: w - 1, t: 0 }]);
     for (let a = 0; a < H.length; a++) for (let b = a + 1; b < H.length; b++)
       for (let c = 0; c < V.length; c++) for (let d = c + 1; d < V.length; d++) {
         const p = [lineX(H[a], V[c]), lineX(H[a], V[d]), lineX(H[b], V[d]), lineX(H[b], V[c])];
