@@ -1,7 +1,7 @@
 {
-  "name": "文件扫描仪",
-  "short_name": "文件扫描",
-  "description": "拍照、裁边、变白，多页合成 PDF",
+  "name": "Doc Scanner",
+  "short_name": "Doc Scanner",
+  "description": "Scan documents: crop, clean, export multi-page PDF",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
