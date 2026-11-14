@@ -178,7 +178,9 @@ function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTim
 function busy(on,text,frac){$('busy').hidden=!on; if(text)$('busyText').textContent=text; $('busyBar').style.width=((frac||0)*100)+'%'; $('busyBar').parentNode.hidden=frac==null;}
 const tick = () => new Promise(r=>setTimeout(r,20));
 const pad = n => String(n).padStart(2,'0');
-const d = new Date(); $('fname').value = `conote_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+const stamp = (d=new Date()) => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+let nameEdited = false; $('fname').value = stamp();
+function autoName(){ if(!nameEdited){ $('fname').value = stamp(); updateExport(); } }
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 try{ const q=localStorage.getItem('quick'); if(q!==null) $('quick').checked = q==='1'; }catch(e){}
 $('quick').onchange = () => { try{localStorage.setItem('quick',$('quick').checked?'1':'0')}catch(e){} };
@@ -230,7 +232,7 @@ async function batch(files){
       pages.push(p); await dbPut(p); ok++; if(!q) chk++; }
     catch(e){ bad++; }
   }
-  await dbOrder(); busy(false); renderGrid(); closeEditor();
+  await dbOrder(); autoName(); busy(false); renderGrid(); closeEditor();
   let msg = `已加入 ${ok} 页，共 ${pages.length} 页`; if(chk) msg += `｜${chk} 页没找到纸边，请点黄框检查`; if(bad) msg += `｜${bad} 张打不开`;
   toast(msg);
 }
@@ -293,7 +295,7 @@ $('btnSave').onclick = async ()=>{
   busy(true,'处理中…'); await tick();
   try{
     if(editingIndex>=0){ const old=pages[editingIndex]; const p=await finish(src,srcBlob,quad,filter,false,old.id); pages[editingIndex]=p; await dbPut(p); toast(`第 ${editingIndex+1} 页已更新`); }
-    else { const p=await finish(src,srcBlob,quad,filter,false); pages.push(p); await dbPut(p); await dbOrder(); toast(`已加入第 ${pages.length} 页`); }
+    else { const p=await finish(src,srcBlob,quad,filter,false); pages.push(p); await dbPut(p); await dbOrder(); autoName(); toast(`已加入第 ${pages.length} 页`); }
   } catch(e){ toast('保存失败，手机内存可能不够，请先导出一部分'); }
   finally{ busy(false); }
   renderGrid(); if(!(await nextInQueue())) closeEditor();
@@ -399,7 +401,7 @@ $('btnClear').onclick = async ()=>{
   const b=$('btnClear');
   if(!b.dataset.sure){ b.dataset.sure=1; b.textContent=`确定清空 ${pages.length} 页？再按一次`; setTimeout(()=>{delete b.dataset.sure;b.textContent='清空全部'},3000); return; }
   delete b.dataset.sure; b.textContent='清空全部';
-  for(const p of pages) await dbDel(p.id); pages=[]; await dbOrder(); renderGrid(); toast('已清空');
+  for(const p of pages) await dbDel(p.id); pages=[]; await dbOrder(); nameEdited=false; autoName(); renderGrid(); toast('已清空');
 };
 
 /* ---------- export ---------- */
@@ -410,7 +412,7 @@ function updateExport(){
   $('outnote').textContent = fmt==='pdf' ? `${n} 页 → 1 个 PDF（${baseName()}.pdf）` : (n ? `${n} 张图片：${jpgNames()[0]}${n>1?' … '+jpgNames()[n-1]:''}` : '0 张图片');
   $('btnShare').disabled = !n; $('btnSaveOut').disabled = !n;
 }
-$('fname').addEventListener('input', updateExport);
+$('fname').addEventListener('input', ()=>{ nameEdited = $('fname').value.trim()!==''; updateExport(); });
 document.querySelectorAll('.fmt .chip').forEach(b=>b.onclick=()=>{ fmt=b.dataset.fmt; document.querySelectorAll('.fmt .chip').forEach(x=>x.setAttribute('aria-pressed',x===b)); updateExport(); });
 
 function buildPdf(imgs){
