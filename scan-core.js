@@ -291,10 +291,20 @@
     cv.addWeighted(n, 1.45, bl, -0.45, 0, n);
     const er = M(new cv.Mat()); cv.erode(n, er, M(cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3))));
     cv.addWeighted(n, 0.7, er, 0.3, 0, n);
-    const W = n.cols, H = n.rows, d = n.data32F, out = new Uint8ClampedArray(W * H * 4);
+    // lightly smoothed copy: tells a faint pen stroke (a few px wide, still darker after smoothing) from single-pixel paper grain
+    const sf = M(new cv.Mat()); cv.GaussianBlur(n, sf, new cv.Size(0, 0), 1.1);
+    const W = n.cols, H = n.rows, d = n.data32F, ds = sf.data32F, db = fb.data32F, out = new Uint8ClampedArray(W * H * 4);
     const lo = 95, hi = 222, span = hi - lo;
+    const FAINT_HI = 240, FAINT_LO = 226, FAINT_GAIN = 3.2;
     const curve = new Uint8Array(512); // index = value+128 clamp
     for (let i = 0; i < 512; i++) { const v = i - 128; let t = (v - lo) / span; t = t < 0 ? 0 : t > 1 ? 1 : t; curve[i] = Math.round(255 * Math.pow(t, 2.0)); }
+    // is the sheet itself coloured (blue/pink/yellow copy)? median chroma of the paper estimate decides.
+    // Only then are faint strokes rescued: there the ink has the paper's own hue and loses it in the division above;
+    // on white paper the same boost would only bring out grain and show-through.
+    const hist = new Uint32Array(256); let hn = 0;
+    for (let j = 0; j < W * H * 3; j += 3 * 11) { const c = Math.max(db[j], db[j + 1], db[j + 2]) - Math.min(db[j], db[j + 1], db[j + 2]); hist[c > 255 ? 255 : c | 0]++; hn++; }
+    let med = 0; for (let a = 0, c = 0; c < 256; c++) { a += hist[c]; if (a >= hn / 2) { med = c; break; } }
+    const pg = med <= 6 ? 0 : med >= 9 ? 1 : (med - 6) / 3;
     const cl = v => curve[v < -128 ? 0 : v > 383 ? 511 : (v + 128) | 0];
     const ink = v => { let t = (v - 60) / 190; t = t < 0 ? 0 : t > 1 ? 1 : t; return 255 * Math.pow(t, 2.4); };
     if (mode === 'gray' || mode === 'bw') {
@@ -311,14 +321,46 @@
         // near-neutral → pure gray (kills paper tint & colour noise); real colour (ink, stamps, highlighter) kept & boosted
         // coloured strokes (pen, stamps) get their own, darker curve and richer colour, so faint ballpoint reads like CamScanner
         const w = c < 14 ? 0 : c > 34 ? 1 : (c - 14) / 20;
-        const Yi = w ? ink(Y) : 0, Yo = Yc + (Yi - Yc) * w, keep = w * 2.0;
+        const Yi = w ? ink(Y) : 0; let Yo = Yc + (Yi - Yc) * w, keep = w * 2.0;
+        // faint strokes (light ballpoint on same-coloured paper): the main curve would bleach them, so pull them down instead
+        const Rs = ds[j], Gs = ds[j + 1], Bs = ds[j + 2], Ys = 0.299 * Rs + 0.587 * Gs + 0.114 * Bs;
+        if (pg > 0 && Ys < FAINT_HI && Y < 250) {
+          const f = (Ys < FAINT_LO ? 1 : (FAINT_HI - Ys) / (FAINT_HI - FAINT_LO)) * pg, Yf = 255 - (255 - Y) * FAINT_GAIN;
+          const Yt = Yf < 40 ? 40 : Yf; if (Yt < Yo) Yo += (Yt - Yo) * f;
+          const cs = Math.max(Rs, Gs, Bs) - Math.min(Rs, Gs, Bs), wc = cs < 5 ? 0 : cs > 14 ? 1 : (cs - 5) / 9;
+          if (wc * f * 3.0 > keep) keep = wc * f * 3.0;
+        }
         const k = i * 4; out[k] = Yo + (R - Y) * keep; out[k + 1] = Yo + (G - Y) * keep; out[k + 2] = Yo + (B - Y) * keep; out[k + 3] = 255;
       }
     }
     free();
+    edgeClean(out, W, H);
     const t = trimBox(out, W, H);
     const o = mk(t.w, t.h); o.getContext('2d').putImageData(new ImageData(out, W, H), -t.x, -t.y); return o;
   };
+  // leftovers hugging the border (punch holes, a sliver of the sheet underneath, paper-edge shadow):
+  // anything non-white that is connected to the image border and stays inside a thin band gets painted white.
+  function edgeClean(px, W, H) {
+    const band = Math.max(6, Math.round(Math.min(W, H) * 0.03));
+    const st = new Uint8Array(W * H), stack = [];
+    const inBand = (x, y) => x < band || y < band || x >= W - band || y >= H - band;
+    const dirty = i => { const k = i * 4, r = px[k], g = px[k + 1], b = px[k + 2]; return r + g + b < 700 || Math.max(r, g, b) - Math.min(r, g, b) > 28; };
+    const seed = (x, y) => { const i = y * W + x; if (!st[i] && dirty(i)) { st[i] = 1; stack.push(i); } };
+    for (let x = 0; x < W; x++) for (let k = 0; k < 3; k++) { seed(x, k); seed(x, H - 1 - k); }
+    for (let y = 0; y < H; y++) for (let k = 0; k < 3; k++) { seed(k, y); seed(W - 1 - k, y); }
+    const comp = [];
+    while (stack.length) {
+      const i = stack.pop(), x = i % W, y = (i / W) | 0; comp.push(i);
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H || !inBand(nx, ny)) continue;
+        const ni = ny * W + nx; if (!st[ni] && dirty(ni)) { st[ni] = 1; stack.push(ni); }
+      }
+    }
+    for (const i of comp) { const k = i * 4; px[k] = px[k + 1] = px[k + 2] = 255; }
+    // soften the 1px ring around what was removed
+    for (const i of comp) { const x = i % W, y = (i / W) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H || !inBand(nx, ny)) continue; const k = (ny * W + nx) * 4; px[k] = px[k + 1] = px[k + 2] = 255; } }
+  }
   // after cropping, a thin strip of desk or of the sheets underneath can survive along an edge.
   // Walk in from each side while the line is mostly "not paper"; cut it if it ends within 3.5%.
   function trimBox(px, W, H) {
