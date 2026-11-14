@@ -1,6 +1,6 @@
 {
-  "name": "Conote 扫描仪",
-  "short_name": "Conote 扫描",
+  "name": "文件扫描仪",
+  "short_name": "文件扫描",
   "description": "拍照、裁边、变白，多页合成 PDF",
   "start_url": "./",
   "scope": "./",
